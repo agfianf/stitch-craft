@@ -135,6 +135,143 @@ const NumberInput: React.FC<{
   );
 };
 
+const AngleInput: React.FC<{
+  value: number | '';
+  onChange: (val: number) => void;
+  onBlur?: () => void;
+  step: number;
+  label?: string;
+  placeholder?: string;
+}> = ({ value, onChange, onBlur, step, label, placeholder }) => {
+  const [localValue, setLocalValue] = useState<string>(value === '' ? '' : value.toString());
+
+  useEffect(() => {
+    if (value !== '' && typeof value === 'number' && !isNaN(value)) {
+      if (parseFloat(localValue) !== value) {
+        setLocalValue(value.toString());
+      }
+    } else if (value === '') {
+      setLocalValue('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const increment = () => {
+    const current = typeof value === 'number' ? value : 0;
+    onChange(current + step);
+  };
+
+  const decrement = () => {
+    const current = typeof value === 'number' ? value : 0;
+    onChange(current - step);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      increment();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      decrement();
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setLocalValue(newVal);
+
+    const parsed = parseFloat(newVal);
+    if (!isNaN(parsed) && newVal !== '' && newVal !== '-') {
+      onChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    if (value !== '' && !isNaN(Number(value))) {
+      setLocalValue(value.toString());
+    } else {
+      setLocalValue('');
+    }
+    if (onBlur) onBlur();
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="flex-1 flex items-center bg-white/30 hover:bg-white/50 border border-white/50 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-sky-400/50 focus-within:bg-white/60 transition-all shadow-sm backdrop-blur-sm">
+        {label && <span className="pl-3 text-xs text-slate-500 select-none font-semibold">{label}</span>}
+        <input
+          type="text"
+          value={localValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="w-full bg-transparent text-sm text-slate-700 p-2.5 outline-none appearance-none placeholder-slate-400/70 font-medium"
+        />
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <button
+          onClick={increment}
+          className="p-1 bg-white/50 hover:bg-white/70 border border-white/50 rounded-md text-slate-500 hover:text-slate-700 transition-all shadow-sm active:scale-95"
+          type="button"
+          title="Increase angle"
+        >
+          <Icons.ChevronUp size={14} />
+        </button>
+        <button
+          onClick={decrement}
+          className="p-1 bg-white/50 hover:bg-white/70 border border-white/50 rounded-md text-slate-500 hover:text-slate-700 transition-all shadow-sm active:scale-95"
+          type="button"
+          title="Decrease angle"
+        >
+          <Icons.ChevronDown size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const StepInput: React.FC<{
+  value: number;
+  onChange: (val: number) => void;
+}> = ({ value, onChange }) => {
+  const [localValue, setLocalValue] = useState<string>(value.toString());
+
+  useEffect(() => {
+    setLocalValue(value.toString());
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setLocalValue(newVal);
+    const parsed = parseFloat(newVal);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 90) {
+      onChange(parsed);
+    }
+  };
+
+  const handleBlur = () => {
+    const parsed = parseFloat(localValue);
+    if (isNaN(parsed) || parsed <= 0 || parsed > 90) {
+      setLocalValue(value.toString());
+    }
+  };
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span className="text-[9px] text-slate-400 font-semibold">Step:</span>
+      <input
+        type="text"
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        className="w-12 px-1.5 py-0.5 text-[10px] bg-white/40 border border-white/60 rounded text-slate-600 text-center font-medium focus:outline-none focus:ring-1 focus:ring-sky-400/50"
+      />
+      <span className="text-[9px] text-slate-400">°</span>
+    </div>
+  );
+};
+
 // --- Modals ---
 
 const ExportModal: React.FC<{
@@ -313,6 +450,10 @@ export default function App() {
   const [pan, setPan] = useState<Coordinates>({ x: 0, y: 0 });
   const [showGuides, setShowGuides] = useState<boolean>(true);
   const [showInfo, setShowInfo] = useState<boolean>(false);
+  const [angleStep, setAngleStep] = useState<number>(() => {
+    const saved = localStorage.getItem('angleStep');
+    return saved ? parseFloat(saved) : 0.1;
+  });
 
   // Sidebar Collapse State
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState<boolean>(false);
@@ -781,6 +922,11 @@ export default function App() {
       setZoom(newZoom);
     }
   };
+
+  // Persist angleStep to localStorage
+  useEffect(() => {
+    localStorage.setItem('angleStep', angleStep.toString());
+  }, [angleStep]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1433,18 +1579,24 @@ export default function App() {
             </InputGroup>
 
             {/* Transformation */}
-            <InputGroup label="Transformation">
+            <div className="flex flex-col gap-1.5 mb-5">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[10px] font-bold text-slate-500/80 uppercase tracking-widest drop-shadow-sm">
+                  Transformation
+                </label>
+                <StepInput value={angleStep} onChange={setAngleStep} />
+              </div>
               <div className="space-y-3">
                  <div className="flex items-center gap-2">
                     <div className="p-2.5 bg-white/50 rounded-xl text-slate-500 border border-white/50 shadow-sm">
                         <Icons.RotateCw size={14} />
                     </div>
                     <div className="flex-1">
-                      <NumberInput 
+                      <AngleInput
                         label="Angle"
-                        value={getCommonValue('rotation')} 
-                        onChange={(v) => updateSelectedLayers({ rotation: v })} 
-                        step={0.1}
+                        value={getCommonValue('rotation')}
+                        onChange={(v) => updateSelectedLayers({ rotation: v })}
+                        step={angleStep}
                         placeholder="Mixed"
                       />
                       <div className="mt-2 px-1">
@@ -1488,7 +1640,7 @@ export default function App() {
                     </div>
                  </div>
               </div>
-            </InputGroup>
+            </div>
 
             {/* Appearance */}
             <InputGroup label="Opacity">
